@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Troll Host — Soundboard</title>
+    <style>
+        :root{--bg:#0f0f12;--card:#17171b;--accent:#ff4d4d;--muted:#9aa0a6}
+        body{font-family:Inter,system-ui,Segoe UI,Arial;background:linear-gradient(180deg,#071019 0%,#0b1220 100%);color:#e6eef6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+        .wrap{max-width:820px;width:100%}
+        header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+        h1{font-size:20px;margin:0}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+        button.sound{background:linear-gradient(180deg,var(--card),#0f1113);border:1px solid rgba(255,255,255,.04);padding:14px;border-radius:10px;color:inherit;font-weight:600;cursor:pointer;box-shadow:0 6px 18px rgba(2,6,23,.6)}
+        .controls{display:flex;gap:8px;align-items:center}
+        .small{font-size:13px;color:var(--muted);margin-top:8px}
+        footer{margin-top:14px;font-size:12px;color:var(--muted)}
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <header>
+            <h1>Troll Host — Soundboard</h1>
+            <div class="controls">
+                <button id="autoplayToggle" class="sound">Start Autoplay</button>
+                <button id="stopAll" class="sound">Stop All</button>
+            </div>
+        </header>
+
+        <p class="small">Click any button to play a sound. Use responsibly.</p>
+
+        <div class="grid" id="buttons">
+            <button class="sound" onclick="playHorn()">Horn Blast</button>
+            <button class="sound" onclick="playBeep()">Annoying Beep</button>
+            <button class="sound" onclick="playScream()">Loud Scream (speech)</button>
+            <button class="sound" onclick="playCluck()">Chicken Cluck</button>
+            <button class="sound" onclick="playLaugh()">Echo Laugh</button>
+            <button class="sound" onclick="playRandom()">Play Random</button>
+        </div>
+
+        <footer>
+            - Open this file locally or host it on any static web host. Right-click to save audio if needed.
+        </footer>
+    </div>
+
+    <script>
+        const AC = (window.AudioContext || window.webkitAudioContext);
+        let ctx = null;
+        function ensureCtx(){ if(!ctx) ctx = new AC(); return ctx; }
+
+        function playOsc({type='sine',freq=440,dur=0.4,volume=0.6}){
+            const c = ensureCtx();
+            const o = c.createOscillator();
+            const g = c.createGain();
+            o.type = type; o.frequency.value = freq;
+            g.gain.value = volume;
+            o.connect(g); g.connect(c.destination);
+            o.start();
+            g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+            setTimeout(()=>{ try{o.stop()}catch(e){} }, (dur+0.05)*1000);
+        }
+
+        function playBeep(){ playOsc({type:'square',freq:1200,dur:0.08,volume:0.5}); setTimeout(()=>playOsc({type:'square',freq:900,dur:0.07,volume:0.45}),90); }
+
+        function playHorn(){ const c=ensureCtx(); const o=c.createOscillator(); const g=c.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(120, c.currentTime); o.frequency.exponentialRampToValueAtTime(700, c.currentTime+0.9); g.gain.value=0.9; g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+1.1); o.connect(g); g.connect(c.destination); o.start(); setTimeout(()=>{try{o.stop()}catch(e){}},1200); }
+
+        function playScream(){ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(randomChoice(['HEY!','STOP THAT!','WHAT THE—'])); u.volume=1; u.rate=1; u.pitch=1.2; speechSynthesis.speak(u); } else { playOsc({type:'sawtooth',freq:800,dur:0.6,volume:0.9}); }}
+
+        function playCluck(){ playOsc({type:'square',freq:700,dur:0.06,volume:0.5}); setTimeout(()=>playOsc({type:'square',freq:600,dur:0.05,volume:0.45}),80); setTimeout(()=>playOsc({type:'square',freq:500,dur:0.07,volume:0.45}),160); }
+
+        function playLaugh(){ const c=ensureCtx(); for(let i=0;i<6;i++){ setTimeout(()=>playOsc({type:'sine',freq:randomInt(250,900),dur:0.12,volume:0.35}), i*90); } }
+
+        function playRandom(){ randomChoice([playHorn,playBeep,playScream,playCluck,playLaugh])(); }
+
+        function randomChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+        function randomInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+        // Autoplay interval
+        let autoplay = false; let autoplayId = null;
+        const autoplayBtn = document.getElementById('autoplayToggle');
+        const stopBtn = document.getElementById('stopAll');
+        autoplayBtn.addEventListener('click', ()=>{
+            autoplay = !autoplay; if(autoplay){ startAutoplay(); autoplayBtn.textContent='Stop Autoplay'; } else { stopAutoplay(); autoplayBtn.textContent='Start Autoplay'; }
+        });
+        stopBtn.addEventListener('click', ()=>{ stopAutoplay(); if(speechSynthesis) speechSynthesis.cancel(); autoplay=false; autoplayBtn.textContent='Start Autoplay'; });
+
+        function startAutoplay(){ if(autoplayId) return; autoplayId = setInterval(()=>{ playRandom(); }, randomInt(700,1600)); }
+        function stopAutoplay(){ if(autoplayId) clearInterval(autoplayId); autoplayId=null; }
+
+        // Make keyboard shortcuts for quick trolling
+        window.addEventListener('keydown', e=>{
+            if(e.key==='1') playHorn();
+            if(e.key==='2') playBeep();
+            if(e.key==='3') playScream();
+            if(e.key==='4') playCluck();
+            if(e.key==='5') playLaugh();
+        });
+
+        // Friendly: unlock AudioContext on first user gesture (some browsers require this)
+        window.addEventListener('click', ()=>{ ensureCtx(); }, {once:true});
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎉 Welcome! 🎉</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        h1 {
+            color: white;
+            font-size: 4rem;
+            margin-bottom: 20px;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+            animation: bounce 1s infinite;
+        }
+
+        .subtitle {
+            color: #fff;
+            font-size: 1.3rem;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            max-width: 1000px;
+            padding: 20px;
+        }
+
+        button {
+            padding: 20px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .btn-1 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .btn-2 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .btn-3 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .btn-4 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .btn-5 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+        .btn-6 { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333; }
+        .btn-7 { background: linear-gradient(135deg, #ff9566 0%, #ffb56b 100%); }
+        .btn-8 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+
+        .footer {
+            color: white;
+            margin-top: 40px;
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .spinning {
+            animation: spin 0.5s ease !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="errorPage" style="text-align: center; color: white;">
+        <h1 style="font-size: 8rem; margin: 0;">404</h1>
+        <h2>Page Not Found</h2>
+        <p style="font-size: 1.2rem; margin: 20px 0;">The page you're looking for doesn't exist.</p>
+        <p style="color: #ccc; margin-bottom: 30px;">Error Code: MISSING_FILE</p>
+        <button class="btn-1" onclick="reveal()" style="padding: 15px 40px; font-size: 1rem;">Go Back</button>
+    </div>
+
+    <div id="trollPage" style="display: none;">
+        <h1>🎊 TROLLED! 🎊</h1>
+        <p class="subtitle">You fell for it!</p>
+        
+        <div class="container">
+            <button class="btn-1" onclick="playAirhorn()">📯 AIRHORN</button>
+            <button class="btn-2" onclick="playError()">❌ ERROR</button>
+            <button class="btn-3" onclick="playWhoosh()">💨 WHOOSH</button>
+            <button class="btn-4" onclick="playLaugh()">😂 EVIL LAUGH</button>
+            <button class="btn-5" onclick="playDing()">🔔 DING!</button>
+            <button class="btn-6" onclick="playTrombone()">🎺 TROMBONE</button>
+            <button class="btn-7" onclick="playBuzzer()">🎲 BUZZER</button>
+            <button class="btn-8" onclick="playRickroll()">🎵 SPECIAL</button>
+        </div>
+
+        <p class="footer">Created by your friendly neighborhood troll master 👻</p>
+    </div>
+
+    <script>
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function reveal() {
+            document.getElementById('errorPage').style.display = 'none';
+            document.getElementById('trollPage').style.display = 'flex';
+            document.body.flexDirection = 'column';
+            playAirhorn();
+        }
+
+        function playSound(frequency, duration, type = 'sine') {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.type = type;
+            oscillator.frequency.value = frequency;
+
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function playAirhorn() {
+            const now = audioContext.currentTime;
+            for (let i = 0; i < 5; i++) {
+                playSound(150 + i * 50, 0.1, 'square');
+            }
+            setTimeout(() => playSound(400, 0.3, 'sawtooth'), 100);
+            setTimeout(() => playSound(600, 0.3, 'sawtooth'), 150);
+        }
+
+        function playError() {
+            playSound(800, 0.2, 'sine');
+            setTimeout(() => playSound(600, 0.2, 'sine'), 150);
+            setTimeout(() => playSound(400, 0.3, 'sine'), 300);
+        }
+
+        function playWhoosh() {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.4);
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0, audioContext.currentTime + 0.4);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.4);
+        }
+
+        function playLaugh() {
+            playSound(200, 0.15, 'sine');
+            setTimeout(() => playSound(250, 0.15, 'sine'), 150);
+            setTimeout(() => playSound(200, 0.15, 'sine'), 300);
+            setTimeout(() => playSound(300, 0.25, 'sine'), 450);
+        }
+
+        function playDing() {
+            playSound(800, 0.5, 'sine');
+            setTimeout(() => playSound(1000, 0.3, 'sine'), 250);
+        }
+
+        function playTrombone() {
+            playSound(400, 0.3, 'sine');
+            setTimeout(() => playSound(200, 0.3, 'sine'), 300);
+            setTimeout(() => playSound(150, 0.2, 'sine'), 600);
+        }
+
+        function playBuzzer() {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.type = 'square';
+            oscillator.frequency.value = 500;
+            gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+        }
+
+        function playRickroll() {
+            // Rick Roll theme melody
+            const melody = [
+                { freq: 392, dur: 0.3 },  // G
+                { freq: 440, dur: 0.3 },  // A
+                { freq: 493.88, dur: 0.3 }, // B
+                { freq: 392, dur: 0.3 },  // G
+                { freq: 440, dur: 0.3 },  // A
+                { freq: 440, dur: 0.4 }   // A
+            ];
+
+            melody.forEach((note, index) => {
+                setTimeout(() => playSound(note.freq, note.dur, 'sine'), index * 350);
+            });
+
+            alert("🎵 You've been Rick rolled! Never gonna give you up! 🎵");
+        }
+    </script>
+</body>
+</html>
