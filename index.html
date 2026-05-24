@@ -1,339 +1,175 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Troll Host — Soundboard</title>
-    <style>
-        :root{--bg:#0f0f12;--card:#17171b;--accent:#ff4d4d;--muted:#9aa0a6}
-        body{font-family:Inter,system-ui,Segoe UI,Arial;background:linear-gradient(180deg,#071019 0%,#0b1220 100%);color:#e6eef6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-        .wrap{max-width:820px;width:100%}
-        header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-        h1{font-size:20px;margin:0}
-        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-        button.sound{background:linear-gradient(180deg,var(--card),#0f1113);border:1px solid rgba(255,255,255,.04);padding:14px;border-radius:10px;color:inherit;font-weight:600;cursor:pointer;box-shadow:0 6px 18px rgba(2,6,23,.6)}
-        .controls{display:flex;gap:8px;align-items:center}
-        .small{font-size:13px;color:var(--muted);margin-top:8px}
-        footer{margin-top:14px;font-size:12px;color:var(--muted)}
-    </style>
-</head>
-<body>
-    <div class="wrap">
-        <header>
-            <h1>Troll Host — Soundboard</h1>
-            <div class="controls">
-                <button id="autoplayToggle" class="sound">Start Autoplay</button>
-                <button id="stopAll" class="sound">Stop All</button>
-            </div>
-        </header>
-
-        <p class="small">Click any button to play a sound. Use responsibly.</p>
-
-        <div class="grid" id="buttons">
-            <button class="sound" onclick="playHorn()">Horn Blast</button>
-            <button class="sound" onclick="playBeep()">Annoying Beep</button>
-            <button class="sound" onclick="playScream()">Loud Scream (speech)</button>
-            <button class="sound" onclick="playCluck()">Chicken Cluck</button>
-            <button class="sound" onclick="playLaugh()">Echo Laugh</button>
-            <button class="sound" onclick="playRandom()">Play Random</button>
-        </div>
-
-        <footer>
-            - Open this file locally or host it on any static web host. Right-click to save audio if needed.
-        </footer>
-    </div>
-
-    <script>
-        const AC = (window.AudioContext || window.webkitAudioContext);
-        let ctx = null;
-        function ensureCtx(){ if(!ctx) ctx = new AC(); return ctx; }
-
-        function playOsc({type='sine',freq=440,dur=0.4,volume=0.6}){
-            const c = ensureCtx();
-            const o = c.createOscillator();
-            const g = c.createGain();
-            o.type = type; o.frequency.value = freq;
-            g.gain.value = volume;
-            o.connect(g); g.connect(c.destination);
-            o.start();
-            g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
-            setTimeout(()=>{ try{o.stop()}catch(e){} }, (dur+0.05)*1000);
-        }
-
-        function playBeep(){ playOsc({type:'square',freq:1200,dur:0.08,volume:0.5}); setTimeout(()=>playOsc({type:'square',freq:900,dur:0.07,volume:0.45}),90); }
-
-        function playHorn(){ const c=ensureCtx(); const o=c.createOscillator(); const g=c.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(120, c.currentTime); o.frequency.exponentialRampToValueAtTime(700, c.currentTime+0.9); g.gain.value=0.9; g.gain.exponentialRampToValueAtTime(0.001, c.currentTime+1.1); o.connect(g); g.connect(c.destination); o.start(); setTimeout(()=>{try{o.stop()}catch(e){}},1200); }
-
-        function playScream(){ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(randomChoice(['HEY!','STOP THAT!','WHAT THE—'])); u.volume=1; u.rate=1; u.pitch=1.2; speechSynthesis.speak(u); } else { playOsc({type:'sawtooth',freq:800,dur:0.6,volume:0.9}); }}
-
-        function playCluck(){ playOsc({type:'square',freq:700,dur:0.06,volume:0.5}); setTimeout(()=>playOsc({type:'square',freq:600,dur:0.05,volume:0.45}),80); setTimeout(()=>playOsc({type:'square',freq:500,dur:0.07,volume:0.45}),160); }
-
-        function playLaugh(){ const c=ensureCtx(); for(let i=0;i<6;i++){ setTimeout(()=>playOsc({type:'sine',freq:randomInt(250,900),dur:0.12,volume:0.35}), i*90); } }
-
-        function playRandom(){ randomChoice([playHorn,playBeep,playScream,playCluck,playLaugh])(); }
-
-        function randomChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-        function randomInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-
-        // Autoplay interval
-        let autoplay = false; let autoplayId = null;
-        const autoplayBtn = document.getElementById('autoplayToggle');
-        const stopBtn = document.getElementById('stopAll');
-        autoplayBtn.addEventListener('click', ()=>{
-            autoplay = !autoplay; if(autoplay){ startAutoplay(); autoplayBtn.textContent='Stop Autoplay'; } else { stopAutoplay(); autoplayBtn.textContent='Start Autoplay'; }
-        });
-        stopBtn.addEventListener('click', ()=>{ stopAutoplay(); if(speechSynthesis) speechSynthesis.cancel(); autoplay=false; autoplayBtn.textContent='Start Autoplay'; });
-
-        function startAutoplay(){ if(autoplayId) return; autoplayId = setInterval(()=>{ playRandom(); }, randomInt(700,1600)); }
-        function stopAutoplay(){ if(autoplayId) clearInterval(autoplayId); autoplayId=null; }
-
-        // Make keyboard shortcuts for quick trolling
-        window.addEventListener('keydown', e=>{
-            if(e.key==='1') playHorn();
-            if(e.key==='2') playBeep();
-            if(e.key==='3') playScream();
-            if(e.key==='4') playCluck();
-            if(e.key==='5') playLaugh();
-        });
-
-        // Friendly: unlock AudioContext on first user gesture (some browsers require this)
-        window.addEventListener('click', ()=>{ ensureCtx(); }, {once:true});
-    </script>
-</body>
-</html>
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎉 Welcome! 🎉</title>
+    <title>404 — Page Not Found</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
-
-        h1 {
-            color: white;
-            font-size: 4rem;
-            margin-bottom: 20px;
-            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
-            animation: bounce 1s infinite;
-        }
-
-        .subtitle {
-            color: #fff;
-            font-size: 1.3rem;
-            margin-bottom: 40px;
-            opacity: 0.9;
-        }
-
-        .container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            max-width: 1000px;
-            padding: 20px;
-        }
-
-        button {
-            padding: 20px 30px;
-            font-size: 1.1rem;
-            font-weight: bold;
-            border: none;
-            border-radius: 15px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-        }
-
-        button:active {
-            transform: scale(0.95);
-        }
-
-        .btn-1 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-        .btn-2 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-        .btn-3 { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-        .btn-4 { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-        .btn-5 { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
-        .btn-6 { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333; }
-        .btn-7 { background: linear-gradient(135deg, #ff9566 0%, #ffb56b 100%); }
-        .btn-8 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-
-        .footer {
-            color: white;
-            margin-top: 40px;
-            opacity: 0.7;
-            font-size: 0.9rem;
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-        }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .spinning {
-            animation: spin 0.5s ease !important;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #08226a; color: #e4ebff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { width: 100%; max-width: 920px; text-align: center; }
+        .error-screen { background: linear-gradient(180deg, #0a2a60 0%, #08226a 100%); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 40px 120px rgba(0, 0, 0, 0.35); border-radius: 24px; padding: 48px 36px; }
+        .error-code { font-size: clamp(6rem, 16vw, 9rem); line-height: 0.9; letter-spacing: -0.08em; color: #d0e1ff; margin-bottom: 0.2em; }
+        .error-title { font-size: clamp(2rem, 4vw, 3.2rem); margin-bottom: 0.4em; color: #f3f7ff; }
+        .error-text { font-size: 1.05rem; color: #b9cffd; line-height: 1.8; max-width: 760px; margin: 0 auto 1.8em; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 28px; border-radius: 999px; background: #3b6ef2; border: 1px solid rgba(255,255,255,0.12); color: white; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 18px 36px rgba(22, 76, 176, 0.24); background: #5a83ff; }
+        .hidden { display: none !important; }
+        .host-panel { display: none; flex-direction: column; gap: 18px; align-items: stretch; padding: 30px 24px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; }
+        .host-panel.active { display: flex; }
+        .host-header { text-align: left; }
+        .host-header h1 { margin: 0; font-size: 2rem; color: #fff; }
+        .host-header p { margin-top: 0.6em; color: #c7d2ff; font-size: 0.96rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+        .sound-btn { border: none; border-radius: 16px; padding: 16px 14px; color: #070817; font-weight: 700; cursor: pointer; transition: transform 0.2s ease, filter 0.2s ease; }
+        .sound-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
+        .sound-btn.airhorn { background: linear-gradient(135deg, #ff9e54 0%, #ff6770 100%); }
+        .sound-btn.buzzer { background: linear-gradient(135deg, #ff4d8a 0%, #d42b94 100%); }
+        .sound-btn.whoosh { background: linear-gradient(135deg, #49ddff 0%, #3978ff 100%); color: #051529; }
+        .sound-btn.laugh { background: linear-gradient(135deg, #ffe95a 0%, #ffbf35 100%); color: #1f1720; }
+        .sound-btn.ding { background: linear-gradient(135deg, #7efdb9 0%, #3ee5c1 100%); color: #052721; }
+        .sound-btn.rickroll { background: linear-gradient(135deg, #8f6eff 0%, #5d67ff 100%); }
+        .note { color: #a7b7ff; font-size: 0.95rem; }
     </style>
 </head>
 <body>
-    <div id="errorPage" style="text-align: center; color: white;">
-        <h1 style="font-size: 8rem; margin: 0;">404</h1>
-        <h2>Page Not Found</h2>
-        <p style="font-size: 1.2rem; margin: 20px 0;">The page you're looking for doesn't exist.</p>
-        <p style="color: #ccc; margin-bottom: 30px;">Error Code: MISSING_FILE</p>
-        <button class="btn-1" onclick="reveal()" style="padding: 15px 40px; font-size: 1rem;">Go Back</button>
-    </div>
-
-    <div id="trollPage" style="display: none;">
-        <h1>🎊 TROLLED! 🎊</h1>
-        <p class="subtitle">You fell for it!</p>
-        
-        <div class="container">
-            <button class="btn-1" onclick="playAirhorn()">📯 AIRHORN</button>
-            <button class="btn-2" onclick="playError()">❌ ERROR</button>
-            <button class="btn-3" onclick="playWhoosh()">💨 WHOOSH</button>
-            <button class="btn-4" onclick="playLaugh()">😂 EVIL LAUGH</button>
-            <button class="btn-5" onclick="playDing()">🔔 DING!</button>
-            <button class="btn-6" onclick="playTrombone()">🎺 TROMBONE</button>
-            <button class="btn-7" onclick="playBuzzer()">🎲 BUZZER</button>
-            <button class="btn-8" onclick="playRickroll()">🎵 SPECIAL</button>
+    <div class="container">
+        <div id="errorScreen" class="error-screen">
+            <div class="error-code">404</div>
+            <div class="error-title">Page Not Found</div>
+            <div class="error-text">The requested page could not be found. Please check the address or return to the previous page.</div>
+            <button class="btn" onclick="window.location.reload()">Reload Page</button>
         </div>
 
-        <p class="footer">Created by your friendly neighborhood troll master 👻</p>
+        <div id="hostPanel" class="host-panel">
+            <div class="host-header">
+                <h1>Host Control Panel</h1>
+                <p>Only visible when you open the page with the secret host link.</p>
+            </div>
+            <div class="note">Press any button below to play sound through your browser. Normal visitors only see the blue error screen.</div>
+            <div class="grid">
+                <button class="sound-btn airhorn" onclick="playAirhorn()">📯 Airhorn</button>
+                <button class="sound-btn buzzer" onclick="playBuzzer()">🔊 Buzzer</button>
+                <button class="sound-btn whoosh" onclick="playWhoosh()">💨 Whoosh</button>
+                <button class="sound-btn laugh" onclick="playLaugh()">😂 Laugh</button>
+                <button class="sound-btn ding" onclick="playDing()">🔔 Ding</button>
+                <button class="sound-btn rickroll" onclick="playRickroll()">🎵 Rickroll</button>
+            </div>
+            <div class="note">Host mode requires the secret hash <code>#host</code> and the password.</div>
+        </div>
     </div>
 
     <script>
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const HOST_HASH = '#host';
+        const HOST_PASSWORD = 'bluehost';
 
-        function reveal() {
-            document.getElementById('errorPage').style.display = 'none';
-            document.getElementById('trollPage').style.display = 'flex';
-            document.body.flexDirection = 'column';
-            playAirhorn();
+        const errorScreen = document.getElementById('errorScreen');
+        const hostPanel = document.getElementById('hostPanel');
+
+        function checkHostMode() {
+            return window.location.hash === HOST_HASH;
         }
 
-        function playSound(frequency, duration, type = 'sine') {
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
+        function showHostPanel() {
+            errorScreen.classList.add('hidden');
+            hostPanel.classList.add('active');
+            debugInfo.textContent = 'Host mode active.';
+        }
 
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+        function hideHostPanel() {
+            errorScreen.classList.remove('hidden');
+            hostPanel.classList.remove('active');
+            debugInfo.textContent = 'Host mode: use URL with #host';
+        }
 
-            oscillator.type = type;
-            oscillator.frequency.value = frequency;
+        function askHostPassword() {
+            const password = prompt('Enter host password to unlock control panel:');
+            return password === HOST_PASSWORD;
+        }
 
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+        if (checkHostMode()) {
+            if (askHostPassword()) {
+                showHostPanel();
+            } else {
+                hideHostPanel();
+                window.location.hash = '';
+            }
+        } else {
+            hideHostPanel();
+        }
 
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + duration);
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playTone(freq, duration = 0.25, type = 'sine', volume = 0.35) {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.value = volume;
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+            osc.stop(audioContext.currentTime + duration);
         }
 
         function playAirhorn() {
-            const now = audioContext.currentTime;
-            for (let i = 0; i < 5; i++) {
-                playSound(150 + i * 50, 0.1, 'square');
-            }
-            setTimeout(() => playSound(400, 0.3, 'sawtooth'), 100);
-            setTimeout(() => playSound(600, 0.3, 'sawtooth'), 150);
-        }
-
-        function playError() {
-            playSound(800, 0.2, 'sine');
-            setTimeout(() => playSound(600, 0.2, 'sine'), 150);
-            setTimeout(() => playSound(400, 0.3, 'sine'), 300);
-        }
-
-        function playWhoosh() {
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-
-            oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
-            oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.4);
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0, audioContext.currentTime + 0.4);
-
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.4);
-        }
-
-        function playLaugh() {
-            playSound(200, 0.15, 'sine');
-            setTimeout(() => playSound(250, 0.15, 'sine'), 150);
-            setTimeout(() => playSound(200, 0.15, 'sine'), 300);
-            setTimeout(() => playSound(300, 0.25, 'sine'), 450);
-        }
-
-        function playDing() {
-            playSound(800, 0.5, 'sine');
-            setTimeout(() => playSound(1000, 0.3, 'sine'), 250);
-        }
-
-        function playTrombone() {
-            playSound(400, 0.3, 'sine');
-            setTimeout(() => playSound(200, 0.3, 'sine'), 300);
-            setTimeout(() => playSound(150, 0.2, 'sine'), 600);
+            playTone(180, 0.12, 'square', 0.35);
+            setTimeout(() => playTone(260, 0.16, 'square', 0.32), 100);
+            setTimeout(() => playTone(340, 0.18, 'sawtooth', 0.28), 220);
         }
 
         function playBuzzer() {
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.type = 'square';
+            osc.frequency.value = 380;
+            gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.4);
+            osc.stop(audioContext.currentTime + 0.45);
+        }
 
-            oscillator.type = 'square';
-            oscillator.frequency.value = 500;
-            gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+        function playWhoosh() {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(880, audioContext.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(160, audioContext.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.28, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.42);
+        }
 
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.5);
+        function playLaugh() {
+            [320, 430, 360, 520, 410].forEach((freq, index) => {
+                setTimeout(() => playTone(freq, 0.13, 'triangle', 0.26), index * 110);
+            });
+        }
+
+        function playDing() {
+            playTone(900, 0.25, 'sine', 0.32);
+            setTimeout(() => playTone(1100, 0.18, 'sine', 0.26), 180);
         }
 
         function playRickroll() {
-            // Rick Roll theme melody
-            const melody = [
-                { freq: 392, dur: 0.3 },  // G
-                { freq: 440, dur: 0.3 },  // A
-                { freq: 493.88, dur: 0.3 }, // B
-                { freq: 392, dur: 0.3 },  // G
-                { freq: 440, dur: 0.3 },  // A
-                { freq: 440, dur: 0.4 }   // A
+            const notes = [
+                { f: 392, d: 0.25 },
+                { f: 440, d: 0.25 },
+                { f: 494, d: 0.25 },
+                { f: 392, d: 0.25 },
+                { f: 440, d: 0.25 },
+                { f: 440, d: 0.4 }
             ];
-
-            melody.forEach((note, index) => {
-                setTimeout(() => playSound(note.freq, note.dur, 'sine'), index * 350);
+            notes.forEach((note, index) => {
+                setTimeout(() => playTone(note.f, note.d, 'sine', 0.24), index * 320);
             });
-
-            alert("🎵 You've been Rick rolled! Never gonna give you up! 🎵");
+            setTimeout(() => alert('🎵 Never gonna give you up!'), notes.length * 320);
         }
     </script>
 </body>
