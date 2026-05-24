@@ -8,14 +8,14 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #08226a; color: #e4ebff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .container { width: 100%; max-width: 920px; text-align: center; }
-        .error-screen { background: linear-gradient(180deg, #0a2a60 0%, #08226a 100%); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 40px 120px rgba(0, 0, 0, 0.35); border-radius: 24px; padding: 48px 32px; }
+        .error-screen { background: linear-gradient(180deg, #0a2a60 0%, #08226a 100%); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 40px 120px rgba(0, 0, 0, 0.35); border-radius: 24px; padding: clamp(2rem, 6vw, 4rem); }
         .error-code { font-size: clamp(6rem, 16vw, 9rem); line-height: 0.9; letter-spacing: -0.08em; color: #d0e1ff; margin-bottom: 0.2em; }
         .error-title { font-size: clamp(2rem, 4vw, 3.2rem); margin-bottom: 0.4em; color: #f3f7ff; }
         .error-text { font-size: 1.05rem; color: #b9cffd; line-height: 1.8; max-width: 760px; margin: 0 auto 1.8em; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 28px; border-radius: 999px; background: #3b6ef2; border: 1px solid rgba(255,255,255,0.12); color: white; text-decoration: none; font-weight: 600; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 28px; border-radius: 999px; background: #3b6ef2; border: 1px solid rgba(255,255,255,0.12); color: white; font-weight: 700; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; text-decoration: none; }
         .btn:hover { transform: translateY(-2px); box-shadow: 0 18px 36px rgba(22, 76, 176, 0.24); background: #5a83ff; }
         .hidden { display: none !important; }
-        .host-panel { display: none; flex-direction: column; gap: 18px; align-items: stretch; padding: 30px 24px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; }
+        .host-panel { display: none; flex-direction: column; gap: 18px; align-items: stretch; padding: 30px 24px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; }
         .host-panel.active { display: flex; }
         .host-header { text-align: left; }
         .host-header h1 { margin: 0; font-size: 2rem; color: #fff; }
@@ -30,6 +30,9 @@
         .sound-btn.ding { background: linear-gradient(135deg, #7efdb9 0%, #3ee5c1 100%); color: #052721; }
         .sound-btn.rickroll { background: linear-gradient(135deg, #8f6eff 0%, #5d67ff 100%); }
         .note { color: #a7b7ff; font-size: 0.95rem; }
+        .status { padding: 12px 16px; background: rgba(126, 253, 185, 0.1); border: 1px solid rgba(126, 253, 185, 0.3); border-radius: 12px; color: #7efdb9; font-size: 0.9rem; }
+        .status.disconnected { background: rgba(255, 109, 109, 0.1); border-color: rgba(255, 109, 109, 0.3); color: #ff6d6d; }
+        code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: 'Courier New', monospace; }
     </style>
 </head>
 <body>
@@ -43,10 +46,11 @@
 
         <div id="hostPanel" class="host-panel">
             <div class="host-header">
-                <h1>Host Control Panel</h1>
-                <p>Only visible when you open the page with the secret host link.</p>
+                <h1>🎵 Host Control Panel</h1>
+                <p>Play sounds to all connected users in real-time.</p>
             </div>
-            <div class="note">Press any button below to play sound through your browser. Normal visitors only see the blue error screen.</div>
+            <div id="status" class="status disconnected">⏳ Connecting to server...</div>
+            <div class="note">Press any button below to play sound on all connected devices.</div>
             <div class="grid">
                 <button class="sound-btn airhorn" onclick="playAirhorn()">📯 Airhorn</button>
                 <button class="sound-btn buzzer" onclick="playBuzzer()">🔊 Buzzer</button>
@@ -59,23 +63,52 @@
         </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         const HOST_HASH = '#host';
         const HOST_PASSWORD = 'bluehost';
 
         const errorScreen = document.getElementById('errorScreen');
         const hostPanel = document.getElementById('hostPanel');
+        const statusEl = document.getElementById('status');
+
+        let socket = io();
+        let isHost = false;
+
+        // Socket.io event handlers
+        socket.on('connect', () => {
+            console.log('✅ Connected to server');
+            if (isHost) {
+                statusEl.textContent = '✅ Connected - Ready to broadcast';
+                statusEl.classList.remove('disconnected');
+            }
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from server');
+            if (isHost) {
+                statusEl.textContent = '❌ Disconnected from server';
+                statusEl.classList.add('disconnected');
+            }
+        });
+
+        socket.on('play-sound', (soundType) => {
+            console.log('🔊 Received sound event:', soundType);
+            playSoundByType(soundType);
+        });
 
         function checkHostMode() {
             return window.location.hash === HOST_HASH;
         }
 
         function showHostPanel() {
+            isHost = true;
             errorScreen.classList.add('hidden');
             hostPanel.classList.add('active');
         }
 
         function hideHostPanel() {
+            isHost = false;
             errorScreen.classList.remove('hidden');
             hostPanel.classList.remove('active');
         }
@@ -128,6 +161,7 @@
             playTone(180, 0.12, 'square', 0.35);
             setTimeout(() => playTone(260, 0.16, 'square', 0.32), 100);
             setTimeout(() => playTone(340, 0.18, 'sawtooth', 0.28), 220);
+            if (isHost) socket.emit('play-sound', 'airhorn');
         }
 
         function playBuzzer() {
@@ -141,6 +175,7 @@
             osc.start();
             gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.4);
             osc.stop(audioContext.currentTime + 0.45);
+            if (isHost) socket.emit('play-sound', 'buzzer');
         }
 
         function playWhoosh() {
@@ -155,17 +190,20 @@
             gain.connect(audioContext.destination);
             osc.start();
             osc.stop(audioContext.currentTime + 0.42);
+            if (isHost) socket.emit('play-sound', 'whoosh');
         }
 
         function playLaugh() {
             [320, 430, 360, 520, 410].forEach((freq, index) => {
                 setTimeout(() => playTone(freq, 0.13, 'triangle', 0.26), index * 110);
             });
+            if (isHost) socket.emit('play-sound', 'laugh');
         }
 
         function playDing() {
             playTone(900, 0.25, 'sine', 0.32);
             setTimeout(() => playTone(1100, 0.18, 'sine', 0.26), 180);
+            if (isHost) socket.emit('play-sound', 'ding');
         }
 
         function playRickroll() {
@@ -181,6 +219,41 @@
                 setTimeout(() => playTone(note.f, note.d, 'sine', 0.24), index * 320);
             });
             setTimeout(() => alert('🎵 Never gonna give you up!'), notes.length * 320);
+            if (isHost) socket.emit('play-sound', 'rickroll');
+        }
+
+        function playSoundByType(soundType) {
+            resumeAudioContext();
+            switch(soundType) {
+                case 'airhorn': playTone(180, 0.12, 'square', 0.35); setTimeout(() => playTone(260, 0.16, 'square', 0.32), 100); setTimeout(() => playTone(340, 0.18, 'sawtooth', 0.28), 220); break;
+                case 'buzzer': {
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    osc.type = 'square'; osc.frequency.value = 380;
+                    gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    osc.connect(gain); gain.connect(audioContext.destination);
+                    osc.start(); gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.4);
+                    osc.stop(audioContext.currentTime + 0.45); break;
+                }
+                case 'whoosh': {
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(880, audioContext.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(160, audioContext.currentTime + 0.4);
+                    gain.gain.setValueAtTime(0.28, audioContext.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.4);
+                    osc.connect(gain); gain.connect(audioContext.destination);
+                    osc.start(); osc.stop(audioContext.currentTime + 0.42); break;
+                }
+                case 'laugh': [320, 430, 360, 520, 410].forEach((freq, index) => setTimeout(() => playTone(freq, 0.13, 'triangle', 0.26), index * 110)); break;
+                case 'ding': playTone(900, 0.25, 'sine', 0.32); setTimeout(() => playTone(1100, 0.18, 'sine', 0.26), 180); break;
+                case 'rickroll': {
+                    const notes = [{ f: 392, d: 0.25 }, { f: 440, d: 0.25 }, { f: 494, d: 0.25 }, { f: 392, d: 0.25 }, { f: 440, d: 0.25 }, { f: 440, d: 0.4 }];
+                    notes.forEach((note, index) => setTimeout(() => playTone(note.f, note.d, 'sine', 0.24), index * 320));
+                    break;
+                }
+            }
         }
     </script>
 </body>
