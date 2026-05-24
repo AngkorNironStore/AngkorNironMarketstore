@@ -1,0 +1,270 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 — Page Not Found</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #08226a; color: #e4ebff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { width: 100%; max-width: 920px; text-align: center; }
+        .error-screen { background: linear-gradient(180deg, #0a2a60 0%, #08226a 100%); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 40px 120px rgba(0, 0, 0, 0.35); border-radius: 24px; padding: 48px 36px; }
+        .error-code { font-size: clamp(6rem, 16vw, 9rem); line-height: 0.9; letter-spacing: -0.08em; color: #d0e1ff; margin-bottom: 0.2em; }
+        .error-title { font-size: clamp(2rem, 4vw, 3.2rem); margin-bottom: 0.4em; color: #f3f7ff; }
+        .error-text { font-size: 1.05rem; color: #b9cffd; line-height: 1.8; max-width: 760px; margin: 0 auto 1.8em; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 28px; border-radius: 999px; background: #3b6ef2; border: 1px solid rgba(255,255,255,0.12); color: white; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 18px 36px rgba(22, 76, 176, 0.24); background: #5a83ff; }
+        .hidden { display: none !important; }
+        .host-panel { display: none; flex-direction: column; gap: 18px; align-items: stretch; padding: 30px 24px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; }
+        .host-panel.active { display: flex; }
+        .host-header { text-align: left; }
+        .host-header h1 { margin: 0; font-size: 2rem; color: #fff; }
+        .host-header p { margin-top: 0.6em; color: #c7d2ff; font-size: 0.96rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+        .sound-btn { border: none; border-radius: 16px; padding: 16px 14px; color: #070817; font-weight: 700; cursor: pointer; transition: transform 0.2s ease, filter 0.2s ease; }
+        .sound-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
+        .sound-btn.airhorn { background: linear-gradient(135deg, #ff9e54 0%, #ff6770 100%); }
+        .sound-btn.buzzer { background: linear-gradient(135deg, #ff4d8a 0%, #d42b94 100%); }
+        .sound-btn.whoosh { background: linear-gradient(135deg, #49ddff 0%, #3978ff 100%); color: #051529; }
+        .sound-btn.laugh { background: linear-gradient(135deg, #ffe95a 0%, #ffbf35 100%); color: #1f1720; }
+        .sound-btn.ding { background: linear-gradient(135deg, #7efdb9 0%, #3ee5c1 100%); color: #052721; }
+        .sound-btn.rickroll { background: linear-gradient(135deg, #8f6eff 0%, #5d67ff 100%); }
+        .note { color: #a7b7ff; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="errorScreen" class="error-screen">
+            <div class="error-code">404</div>
+            <div class="error-title">Page Not Found</div>
+            <div class="error-text">The requested page could not be found. Please check the address or return to the previous page.</div>
+            <button class="btn" onclick="unlockAudio()">Reload Page</button>
+        </div>
+
+        <div id="hostPanel" class="host-panel">
+            <div class="host-header">
+                <h1>Host Control Panel</h1>
+                <p>Only visible when you open the page with the secret host link.</p>
+            </div>
+            <div class="note">Press any button below to play sound on connected visitors. Normal visitors only see the blue error screen.</div>
+            <div class="grid">
+                <button class="sound-btn airhorn" onclick="sendSound('airhorn')">📯 Airhorn</button>
+                <button class="sound-btn buzzer" onclick="sendSound('buzzer')">🔊 Buzzer</button>
+                <button class="sound-btn whoosh" onclick="sendSound('whoosh')">💨 Whoosh</button>
+                <button class="sound-btn laugh" onclick="sendSound('laugh')">😂 Laugh</button>
+                <button class="sound-btn ding" onclick="sendSound('ding')">🔔 Ding</button>
+                <button class="sound-btn rickroll" onclick="sendSound('rickroll')">🎵 Rickroll</button>
+            </div>
+            <div class="note">Host mode requires the secret hash <code>#host</code> and the password.</div>
+            <div id="debugInfo" class="note"></div>
+        </div>
+    </div>
+
+    <script>
+        const HOST_HASH = '#host';
+        const HOST_PASSWORD = 'bluehost';
+        const SOUND_STORAGE_KEY = 'remote-sound-event';
+
+        const errorScreen = document.getElementById('errorScreen');
+        const hostPanel = document.getElementById('hostPanel');
+        const debugInfo = document.getElementById('debugInfo');
+        const isHost = checkHostMode();
+        let lastSoundId = 0;
+        let audioContext;
+
+        function checkHostMode() {
+            return window.location.hash === HOST_HASH;
+        }
+
+        function showHostPanel() {
+            errorScreen.classList.add('hidden');
+            hostPanel.classList.add('active');
+            setDebug('Host mode active.');
+        }
+
+        function hideHostPanel() {
+            errorScreen.classList.remove('hidden');
+            hostPanel.classList.remove('active');
+            setDebug('Host mode: use URL with #host');
+        }
+
+        function setDebug(message) {
+            if (debugInfo) {
+                debugInfo.textContent = message;
+            }
+        }
+
+        function askHostPassword() {
+            const password = prompt('Enter host password to unlock control panel:');
+            return password === HOST_PASSWORD;
+        }
+
+        if (isHost) {
+            if (askHostPassword()) {
+                showHostPanel();
+            } else {
+                hideHostPanel();
+                window.location.hash = '';
+            }
+        } else {
+            hideHostPanel();
+        }
+
+        function getAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            return audioContext;
+        }
+
+        function unlockAudio() {
+            getAudioContext();
+        }
+
+        ['click', 'keydown', 'touchstart'].forEach((eventName) => {
+            window.addEventListener(eventName, unlockAudio, { once: true, passive: true });
+        });
+
+        function playTone(freq, duration = 0.25, type = 'sine', volume = 0.35) {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.value = volume;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+            osc.stop(ctx.currentTime + duration);
+        }
+
+        function playAirhorn() {
+            playTone(180, 0.12, 'square', 0.35);
+            setTimeout(() => playTone(260, 0.16, 'square', 0.32), 100);
+            setTimeout(() => playTone(340, 0.18, 'sawtooth', 0.28), 220);
+        }
+
+        function playBuzzer() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.value = 380;
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+            osc.stop(ctx.currentTime + 0.45);
+        }
+
+        function playWhoosh() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(880, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.28, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.42);
+        }
+
+        function playLaugh() {
+            [320, 430, 360, 520, 410].forEach((freq, index) => {
+                setTimeout(() => playTone(freq, 0.13, 'triangle', 0.26), index * 110);
+            });
+        }
+
+        function playDing() {
+            playTone(900, 0.25, 'sine', 0.32);
+            setTimeout(() => playTone(1100, 0.18, 'sine', 0.26), 180);
+        }
+
+        function playRickroll() {
+            const notes = [
+                { f: 392, d: 0.25 },
+                { f: 440, d: 0.25 },
+                { f: 494, d: 0.25 },
+                { f: 392, d: 0.25 },
+                { f: 440, d: 0.25 },
+                { f: 440, d: 0.4 }
+            ];
+            notes.forEach((note, index) => {
+                setTimeout(() => playTone(note.f, note.d, 'sine', 0.24), index * 320);
+            });
+        }
+
+        const soundPlayers = {
+            airhorn: playAirhorn,
+            buzzer: playBuzzer,
+            whoosh: playWhoosh,
+            laugh: playLaugh,
+            ding: playDing,
+            rickroll: playRickroll
+        };
+
+        function playSound(sound) {
+            if (soundPlayers[sound]) {
+                soundPlayers[sound]();
+            }
+        }
+
+        async function sendSound(sound) {
+            playSound(sound);
+            const event = { id: Date.now(), sound };
+            localStorage.setItem(SOUND_STORAGE_KEY, JSON.stringify(event));
+
+            try {
+                const response = await fetch('/sound', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sound })
+                });
+                if (!response.ok) {
+                    throw new Error('Sound server unavailable');
+                }
+                setDebug(`Sent ${sound} to visitors.`);
+            } catch (error) {
+                setDebug(`Sent ${sound} to same-browser tabs only. Start server.js for other users.`);
+            }
+        }
+
+        async function pollSounds() {
+            try {
+                const response = await fetch(`/events?since=${lastSoundId}`, { cache: 'no-store' });
+                if (!response.ok) {
+                    return;
+                }
+                const data = await response.json();
+                data.events.forEach((event) => {
+                    lastSoundId = Math.max(lastSoundId, event.id);
+                    playSound(event.sound);
+                });
+            } catch (error) {
+                // Static hosting fallback is handled by the storage event below.
+            }
+        }
+
+        window.addEventListener('storage', (event) => {
+            if (event.key !== SOUND_STORAGE_KEY || !event.newValue || isHost) {
+                return;
+            }
+            const soundEvent = JSON.parse(event.newValue);
+            playSound(soundEvent.sound);
+        });
+
+        if (!isHost) {
+            setInterval(pollSounds, 700);
+            pollSounds();
+        }
+    </script>
+</body>
+</html>
